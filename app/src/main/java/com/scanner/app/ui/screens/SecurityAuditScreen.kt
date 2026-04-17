@@ -2,6 +2,7 @@ package com.scanner.app.ui.screens
 
 import android.Manifest
 import android.os.Build
+import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,7 +31,9 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.scanner.app.data.WifiNetwork
 import com.scanner.app.data.BluetoothDevice
 import com.scanner.app.util.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -87,7 +90,10 @@ fun SecurityAuditScreen() {
                     val deferred = kotlinx.coroutines.CompletableDeferred<List<WifiNetwork>>()
                     wifiScanner.startScan { results -> deferred.complete(results) }
                     kotlinx.coroutines.withTimeoutOrNull(10_000L) { deferred.await() } ?: emptyList()
-                } catch (_: Exception) { emptyList() }
+                } catch (e: Exception) {
+                    Log.e("SecurityAudit", "WiFi scan error", e)
+                    emptyList()
+                }
 
                 // Phase 2: Bluetooth Scan
                 auditPhase = "Bluetooth scannen..."
@@ -95,11 +101,19 @@ fun SecurityAuditScreen() {
                     val deferred = kotlinx.coroutines.CompletableDeferred<List<BluetoothDevice>>()
                     btScanner.startScan(
                         durationMs = 6000L,
-                        onProgress = { try { btDevices = it } catch (_: Exception) {} },
+                        onProgress = { devices ->
+                            // Ensure state update on main thread
+                            scope.launch(Dispatchers.Main.immediate) {
+                                try { btDevices = devices } catch (_: Exception) {}
+                            }
+                        },
                         onComplete = { results -> deferred.complete(results) }
                     )
                     kotlinx.coroutines.withTimeoutOrNull(15_000L) { deferred.await() } ?: emptyList()
-                } catch (_: Exception) { emptyList() }
+                } catch (e: Exception) {
+                    Log.e("SecurityAudit", "Bluetooth scan error", e)
+                    emptyList()
+                }
 
                 // Phase 3: Port scan on gateway
                 try {
@@ -108,27 +122,42 @@ fun SecurityAuditScreen() {
 
                     if (gateway != null) {
                         auditPhase = "Port-Scan: $gateway..."
-                        openPorts = portScanner.scan(
+                        val scanResults = portScanner.scan(
                             ip = gateway,
                             ports = WellKnownPorts.QUICK_20,
                             grabBanners = true,
-                            onProgress = { portScanProgress = it }
+                            onProgress = { progress ->
+                                // Ensure state update on main thread
+                                scope.launch(Dispatchers.Main.immediate) {
+                                    portScanProgress = progress
+                                }
+                            }
                         )
+                        // Update state on main thread
+                        withContext(Dispatchers.Main) {
+                            openPorts = scanResults
+                        }
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("SecurityAudit", "Port scan error", e)
+                    Log.e("SecurityAudit", "Port scan error", e)
                 }
 
                 // Phase 4: Generate report
                 auditPhase = "Bericht erstellen..."
-                report = SecurityAuditor.audit(
-                    wifiNetworks = wifiNetworks,
-                    btDevices = btDevices,
-                    openPorts = openPorts,
-                    connectedSsid = wifiScanner.getConnectedSsid()
-                )
+                val generatedReport = try {
+                    SecurityAuditor.audit(
+                        wifiNetworks = wifiNetworks,
+                        btDevices = btDevices,
+                        openPorts = openPorts,
+                        connectedSsid = wifiScanner.getConnectedSsid()
+                    )
+                } catch (e: Exception) {
+                    Log.e("SecurityAudit", "Report generation error", e)
+                    null
+                }
+                report = generatedReport
             } catch (e: Exception) {
-                android.util.Log.e("SecurityAudit", "Audit error", e)
+                Log.e("SecurityAudit", "Audit error", e)
             } finally {
                 isAuditing = false
                 auditPhase = ""

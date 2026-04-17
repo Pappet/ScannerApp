@@ -188,6 +188,35 @@ class WifiScanner(private val context: Context) {
                 }
 
                 val capabilities = result.capabilities ?: ""
+
+                val vendor = MacVendorLookup.lookup(result.BSSID ?: "")
+
+                val standard = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    when (result.wifiStandard) {
+                        8 -> "Wi-Fi 7" // WIFI_STANDARD_11BE
+                        6 -> "Wi-Fi 6" // WIFI_STANDARD_11AX
+                        5 -> "Wi-Fi 5" // WIFI_STANDARD_11AC
+                        4 -> "Wi-Fi 4" // WIFI_STANDARD_11N
+                        2 -> "Wi-Fi Legacy (a/b/g)" // WIFI_STANDARD_LEGACY
+                        else -> null
+                    }
+                } else null
+
+                val width = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    when (result.channelWidth) {
+                        ScanResult.CHANNEL_WIDTH_20MHZ -> "20 MHz"
+                        ScanResult.CHANNEL_WIDTH_40MHZ -> "40 MHz"
+                        ScanResult.CHANNEL_WIDTH_80MHZ -> "80 MHz"
+                        ScanResult.CHANNEL_WIDTH_160MHZ -> "160 MHz"
+                        ScanResult.CHANNEL_WIDTH_80MHZ_PLUS_MHZ -> "80+80 MHz"
+                        5 -> "320 MHz" // 5 is CHANNEL_WIDTH_320MHZ (API 33)
+                        else -> null
+                    }
+                } else null
+
+                val exp = (27.55 - (20 * Math.log10(result.frequency.toDouble())) + kotlin.math.abs(result.level)) / 20.0
+                val distance = Math.pow(10.0, exp)
+
                 WifiNetwork(
                     ssid = ssid.ifBlank { "(Verstecktes Netzwerk)" },
                     bssid = result.BSSID ?: return@mapNotNull null,
@@ -198,7 +227,11 @@ class WifiScanner(private val context: Context) {
                     isConnected = result.BSSID == connectedBssid,
                     band = if (result.frequency > 4900) "5 GHz" else "2.4 GHz",
                     wpsEnabled = capabilities.contains("WPS", ignoreCase = true),
-                    rawCapabilities = capabilities
+                    rawCapabilities = capabilities,
+                    vendor = vendor,
+                    wifiStandard = standard,
+                    channelWidth = width,
+                    distance = distance
                 )
             } catch (e: Exception) {
                 Log.w(TAG, "Error parsing scan result", e)
@@ -216,12 +249,18 @@ class WifiScanner(private val context: Context) {
 
     private fun getSecurityType(result: ScanResult): String {
         val capabilities = result.capabilities ?: return "Unbekannt"
+        
         return when {
-            capabilities.contains("WPA3") -> "WPA3"
-            capabilities.contains("WPA2") -> "WPA2"
-            capabilities.contains("WPA") -> "WPA"
+            capabilities.contains("WPA3-Enterprise") -> "WPA3 Enterprise"
+            capabilities.contains("WPA3-Personal") || capabilities.contains("WPA3") -> "WPA3 (SAE)"
+            capabilities.contains("WPA2-Enterprise") || capabilities.contains("WPA2-EAP") -> "WPA2 Enterprise"
+            capabilities.contains("WPA2") -> {
+                val cipher = if (capabilities.contains("CCMP")) "CCMP" else if (capabilities.contains("TKIP")) "TKIP" else "PSK"
+                "WPA2 ($cipher)"
+            }
+            capabilities.contains("WPA-") || capabilities.contains("WPA]") || capabilities.contains("WPA") -> "WPA"
             capabilities.contains("WEP") -> "WEP"
-            capabilities.contains("OWE") -> "OWE"
+            capabilities.contains("OWE") -> "OWE (Enhanced Open)"
             else -> "Offen"
         }
     }

@@ -59,6 +59,14 @@ fun BluetoothScreen() {
 
     val permissionState = rememberMultiplePermissionsState(permissions)
 
+    // Persist GATT data when connection becomes READY
+    LaunchedEffect(gattState.connectionState, gattAddress) {
+        if (gattState.connectionState == com.scanner.app.util.ConnectionState.READY && gattAddress != null) {
+            val json = buildGattJson(gattState)
+            repository.persistGattData(gattAddress!!, json)
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             btScanner.cleanup()

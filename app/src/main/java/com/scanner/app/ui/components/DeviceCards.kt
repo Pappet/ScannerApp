@@ -94,7 +94,7 @@ fun WifiNetworkCard(network: WifiNetwork) {
                         )
                 ) {
                     Icon(
-                        imageVector = if (network.securityType == "Offen")
+                        imageVector = if (network.securityType == "Offen" || network.securityType.contains("OWE"))
                             Icons.Outlined.WifiOff else Icons.Outlined.Wifi,
                         contentDescription = null,
                         tint = if (network.isConnected)
@@ -166,8 +166,16 @@ fun WifiNetworkCard(network: WifiNetwork) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 DetailRow("BSSID", network.bssid)
+                network.vendor?.let { DetailRow("Hersteller", it) }
+                network.wifiStandard?.let {
+                    val bw = if (network.channelWidth != null) " (${network.channelWidth})" else ""
+                    DetailRow("WLAN Standard", "$it$bw")
+                }
                 DetailRow("Frequenz", "${network.frequency} MHz")
                 DetailRow("Signalqualität", SignalHelper.wifiQuality(network.signalStrength))
+                network.distance?.let {
+                    DetailRow("Distanz (Schätzung)", java.lang.String.format(java.util.Locale.getDefault(), "ca. %.1f m", it))
+                }
                 DetailRow("Sicherheit", network.securityType)
             }
         }
@@ -340,9 +348,14 @@ fun StatusChip(text: String, color: Color) {
 
 @Composable
 fun SecurityChip(security: String) {
-    val color = if (security == "Offen") Color(0xFFF44336) else MaterialTheme.colorScheme.outline
+    val color = when {
+        security == "Offen" -> Color(0xFFF44336)
+        security.contains("OWE") -> Color(0xFFFF9800)
+        else -> MaterialTheme.colorScheme.outline
+    }
+    val icon = if (security == "Offen" || security.contains("OWE")) Icons.Outlined.LockOpen else Icons.Outlined.Lock
     Icon(
-        imageVector = if (security == "Offen") Icons.Outlined.LockOpen else Icons.Outlined.Lock,
+        imageVector = icon,
         contentDescription = security,
         tint = color,
         modifier = Modifier.size(14.dp)

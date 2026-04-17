@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import kotlinx.coroutines.launch
 import com.scanner.app.util.*
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
@@ -43,6 +44,7 @@ fun BleDetailScreen() {
     var selectedAddress by remember { mutableStateOf<String?>(null) }
 
     val gattState by gattExplorer.state.collectAsState()
+    val scope = rememberCoroutineScope()
 
     val permissions = buildList {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -117,6 +119,7 @@ fun BleDetailScreen() {
                                     try {
                                         scannedDevices = it
                                         isScanning = false
+                                        scope.launch { repository.persistBluetoothScan(it, 8000L) }
                                     } catch (_: Exception) {}
                                 }
                             )
@@ -671,7 +674,7 @@ fun CharacteristicRow(char: GattCharacteristicInfo) {
 
 // ─── Structured JSON Builder ────────────────────────────────────
 
-private fun buildGattJson(state: GattExplorerState): String {
+internal fun buildGattJson(state: GattExplorerState): String {
     val root = org.json.JSONObject()
 
     root.put("device", org.json.JSONObject().apply {

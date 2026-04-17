@@ -40,7 +40,12 @@ class DeviceRepository(context: Context) {
         val now = Instant.now()
 
         for (network in networks) {
-            val metadata = JSONObject().apply {
+            val existing = dao.getDeviceByAddress(network.bssid)
+            val metaJson = try {
+                existing?.metadata?.let { JSONObject(it) } ?: JSONObject()
+            } catch (_: Exception) { JSONObject() }
+
+            metaJson.apply {
                 put("frequency", network.frequency)
                 put("channel", network.channel)
                 put("band", network.band)
@@ -48,20 +53,24 @@ class DeviceRepository(context: Context) {
                 put("isConnected", network.isConnected)
                 put("wpsEnabled", network.wpsEnabled)
                 put("rawCapabilities", network.rawCapabilities)
+                network.vendor?.let { put("vendor", it) }
+                network.wifiStandard?.let { put("wifiStandard", it) }
+                network.channelWidth?.let { put("channelWidth", it) }
+                network.distance?.let { put("distance", it) }
                 location?.let {
                     put("latitude", it.latitude)
                     put("longitude", it.longitude)
                     if (it.hasAltitude()) put("altitude", it.altitude)
                     if (it.hasAccuracy()) put("accuracy", it.accuracy.toDouble())
                 }
-            }.toString()
+            }
 
             val deviceId = dao.upsertDevice(
                 address = network.bssid,
                 name = network.ssid,
                 category = DeviceCategory.WIFI,
                 signalStrength = network.signalStrength,
-                metadata = metadata
+                metadata = metaJson.toString()
             )
 
             readings.add(
@@ -106,18 +115,30 @@ class DeviceRepository(context: Context) {
                 DeviceType.UNKNOWN -> DeviceCategory.BT_BLE
             }
 
-            val metadata = JSONObject().apply {
+            val existing = dao.getDeviceByAddress(device.address)
+            val metaJson = try {
+                existing?.metadata?.let { JSONObject(it) } ?: JSONObject()
+            } catch (_: Exception) { JSONObject() }
+
+            // Preserve existing gattData if present (avoid overwriting GATT scan results)
+            val existingGattData = metaJson.opt("gattData")
+
+            metaJson.apply {
                 put("deviceClass", device.deviceClass ?: "")
                 put("bondState", device.bondState.name)
                 put("isConnected", device.isConnected)
-            }.toString()
+                // Re-inject gattData so it survives BT scan upserts
+                if (existingGattData != null) {
+                    put("gattData", existingGattData)
+                }
+            }
 
             val deviceId = dao.upsertDevice(
                 address = device.address,
                 name = device.name,
                 category = category,
                 signalStrength = device.rssi,
-                metadata = metadata
+                metadata = metaJson.toString()
             )
 
             device.rssi?.let { rssi ->
@@ -234,7 +255,13 @@ class DeviceRepository(context: Context) {
         )
 
         for (device in devices) {
-            val metadata = JSONObject().apply {
+            val address = device.mac ?: "lan:${device.ip}"
+            val existing = dao.getDeviceByAddress(address)
+            val metaJson = try {
+                existing?.metadata?.let { JSONObject(it) } ?: JSONObject()
+            } catch (_: Exception) { JSONObject() }
+
+            metaJson.apply {
                 put("ip", device.ip)
                 put("mac", device.mac ?: "")
                 put("vendor", device.vendor ?: "")
@@ -269,16 +296,14 @@ class DeviceRepository(context: Context) {
                     }
                     put("services", servicesArr)
                 }
-            }.toString()
-
-            val address = device.mac ?: "lan:${device.ip}"
+            }
 
             dao.upsertDevice(
                 address = address,
                 name = device.hostname ?: device.vendor ?: device.ip,
                 category = DeviceCategory.LAN,
                 signalStrength = null,
-                metadata = metadata
+                metadata = metaJson.toString()
             )
         }
     }
@@ -314,15 +339,22 @@ class DeviceRepository(context: Context) {
     }
 
     suspend fun persistGattData(address: String, gattJsonStr: String) {
-        val device = dao.getDeviceByAddress(address) ?: return
+        val existing = dao.getDeviceByAddress(address)
         val existingMeta = try {
-            device.metadata?.let { JSONObject(it) } ?: JSONObject()
+            existing?.metadata?.let { JSONObject(it) } ?: JSONObject()
         } catch (_: Exception) { JSONObject() }
         
         try {
             val gattData = JSONObject(gattJsonStr)
             existingMeta.put("gattData", gattData)
-            dao.updateDevice(device.copy(metadata = existingMeta.toString()))
+            
+            dao.upsertDevice(
+                address = address,
+                name = existing?.name ?: "(Unbekannt)",
+                category = existing?.deviceCategory ?: DeviceCategory.BT_BLE,
+                signalStrength = existing?.lastSignalStrength,
+                metadata = existingMeta.toString()
+            )
         } catch (_: Exception) {}
     }
 }

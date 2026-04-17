@@ -13,7 +13,11 @@ data class WifiNetwork(
     val isConnected: Boolean = false,
     val band: String,              // "2.4 GHz" or "5 GHz"
     val wpsEnabled: Boolean = false,
-    val rawCapabilities: String = ""
+    val rawCapabilities: String = "",
+    val vendor: String? = null,
+    val wifiStandard: String? = null,
+    val channelWidth: String? = null,
+    val distance: Double? = null
 )
 
 /**

@@ -14,6 +14,7 @@
     <string name="action_security_audit">Security Audit</string>
     <string name="action_export">Exportieren</string>
     <string name="action_channel_analysis">Kanalanalyse</string>
+    <string name="action_map">Karte</string>
 
     <!-- WifiScreen -->
     <string name="wifi_networks">WLAN-Netzwerke</string>

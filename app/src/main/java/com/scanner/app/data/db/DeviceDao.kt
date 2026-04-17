@@ -96,6 +96,7 @@ interface DeviceDao {
            OR custom_label LIKE '%' || :query || '%'
            OR address LIKE '%' || :query || '%'
            OR notes LIKE '%' || :query || '%'
+           OR metadata LIKE '%' || :query || '%'
         ORDER BY last_seen DESC
     """)
     fun searchDevices(query: String): Flow<List<DiscoveredDeviceEntity>>

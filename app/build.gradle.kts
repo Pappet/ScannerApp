@@ -72,6 +72,9 @@ dependencies {
     // Navigation — stay on 2.7.x (2.8+ pulls Foundation 1.7 which renames beyondBoundsPageCount)
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
+    // Maps (OpenStreetMap)
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+
     // Accompanist (Permissions)
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
 

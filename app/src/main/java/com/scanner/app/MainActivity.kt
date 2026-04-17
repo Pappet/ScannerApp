@@ -38,8 +38,8 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ScannerApp() {
-    // 7 pages: 5 in bottom nav + 2 top bar actions (Channel Analysis, Security Audit)
-    val pagerState = rememberPagerState(pageCount = { 7 })
+    // 8 pages: 5 in bottom nav + 3 top bar actions (Channel Analysis, Security Audit, Map)
+    val pagerState = rememberPagerState(pageCount = { 8 })
     val coroutineScope = rememberCoroutineScope()
     var showExportDialog by remember { mutableStateOf(false) }
 
@@ -104,6 +104,20 @@ fun ScannerApp() {
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    // Map action
+                    IconButton(onClick = {
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(7)
+                        }
+                    }) {
+                        Icon(
+                            Icons.Outlined.Map,
+                            contentDescription = stringResource(R.string.action_map),
+                            tint = if (pagerState.currentPage == 7)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
@@ -154,6 +168,7 @@ fun ScannerApp() {
                 4 -> InventoryScreen()
                 5 -> ChannelAnalysisScreen()
                 6 -> SecurityAuditScreen()
+                7 -> MapScreen()
             }
         }
     }

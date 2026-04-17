@@ -469,10 +469,18 @@ fun InventoryDeviceCard(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
+                            meta.optString("vendor").takeIf { it.isNotBlank() }?.let { MetaRow("Hersteller", it) }
+                            meta.optString("wifiStandard").takeIf { it.isNotBlank() }?.let { std ->
+                                val bw = meta.optString("channelWidth")
+                                val widthStr = if (bw.isNotBlank()) " ($bw)" else ""
+                                MetaRow("WLAN Standard", "$std$widthStr")
+                            }
                             meta.optInt("frequency", 0).takeIf { it > 0 }?.let { MetaRow("Frequenz", "$it MHz") }
                             meta.optInt("channel", 0).takeIf { it > 0 }?.let { MetaRow("Kanal", "$it") }
                             meta.optString("band").takeIf { it.isNotBlank() }?.let { MetaRow("Band", it) }
                             meta.optString("security").takeIf { it.isNotBlank() }?.let { MetaRow("Sicherheit", it) }
+                            val dist = meta.optDouble("distance", Double.NaN)
+                            if (!dist.isNaN()) MetaRow("Distanz (Schätzung)", java.lang.String.format(java.util.Locale.getDefault(), "ca. %.1f m", dist))
                             if (meta.optBoolean("wpsEnabled")) MetaRow("WPS", "Aktiviert")
                             meta.optString("rawCapabilities").takeIf { it.isNotBlank() }?.let { MetaRow("Fähigkeiten", it) }
 
