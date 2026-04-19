@@ -23,7 +23,17 @@ class Converters {
     /** Converts String back to [DeviceCategory]. */
     @TypeConverter
     fun toDeviceCategory(value: String): DeviceCategory =
-        DeviceCategory.valueOf(value)
+        try {
+            DeviceCategory.valueOf(value)
+        } catch (e: Exception) {
+            // Handle legacy categories from pre-Spectrum versions
+            when (value) {
+                "CLASSIC" -> DeviceCategory.BT_CLASSIC
+                "BLE" -> DeviceCategory.BT_BLE
+                "DUAL" -> DeviceCategory.BT_DUAL
+                else -> DeviceCategory.WIFI
+            }
+        }
 
     /** Converts [ScanType] to String. */
     @TypeConverter

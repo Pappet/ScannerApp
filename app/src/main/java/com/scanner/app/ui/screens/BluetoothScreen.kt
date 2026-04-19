@@ -21,7 +21,6 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.scanner.app.data.BluetoothDevice
 import com.scanner.app.data.BondState
-import com.scanner.app.data.DeviceType
 import com.scanner.app.data.repository.DeviceRepository
 import com.scanner.app.ui.components.BluetoothDeviceCard
 import com.scanner.app.util.BluetoothScanner
@@ -29,10 +28,9 @@ import com.scanner.app.util.GattExplorer
 import kotlinx.coroutines.launch
 
 /**
- * Main screen for discovered Bluetooth devices.
- * Orchestrates scanning for both Classic and BLE devices via [BluetoothScanner],
- * and deep GATT exploration via [GattExplorer].
- * Manages runtime permissions for Bluetooth (Scan/Connect) and location across different API levels.
+ * Main screen for discovered Bluetooth devices. Orchestrates scanning for both Classic and BLE
+ * devices via [BluetoothScanner], and deep GATT exploration via [GattExplorer]. Manages runtime
+ * permissions for Bluetooth (Scan/Connect) and location across different API levels.
  */
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -64,7 +62,9 @@ fun BluetoothScreen() {
     val permissionState = rememberMultiplePermissionsState(permissions)
 
     LaunchedEffect(gattState.connectionState, gattAddress) {
-        if (gattState.connectionState == com.scanner.app.util.ConnectionState.READY && gattAddress != null) {
+        if (gattState.connectionState == com.scanner.app.util.ConnectionState.READY &&
+                        gattAddress != null
+        ) {
             val json = buildGattJson(gattState)
             repository.persistGattData(gattAddress!!, json)
         }
@@ -76,21 +76,9 @@ fun BluetoothScreen() {
         }
     }
 
-
-    if (gattAddress != null) {
-        GattDetailView(
-            state = gattState,
-            onDisconnect = {
-                gattExplorer.disconnect()
-                gattAddress = null
-            }
-        )
-        return // Show only the GATT view, hide the device list
-    }
-
     /**
-     * Triggers a Bluetooth scan using the [BluetoothScanner].
-     * Captures results in real-time, updates local state, and persists the final set to the repository.
+     * Triggers a Bluetooth scan using the [BluetoothScanner]. Captures results in real-time,
+     * updates local state, and persists the final set to the repository.
      */
     fun doScan() {
         if (!btScanner.isBluetoothEnabled()) return
@@ -98,250 +86,256 @@ fun BluetoothScreen() {
         isScanning = true
         val startTime = System.currentTimeMillis()
         btScanner.startScan(
-            onProgress = { results ->
-                try {
-                    devices = results
-                } catch (_: Exception) {}
-            },
-            onComplete = { results ->
-                try {
-                    devices = results
-                    isScanning = false
-                    hasScanned = true
-                } catch (_: Exception) {}
+                onProgress = { results ->
+                    try {
+                        devices = results
+                    } catch (_: Exception) {}
+                },
+                onComplete = { results ->
+                    try {
+                        devices = results
+                        isScanning = false
+                        hasScanned = true
+                    } catch (_: Exception) {}
 
-                try {
-                    scope.launch {
-                        try {
-                            repository.persistBluetoothScan(
-                                devices = results,
-                                durationMs = System.currentTimeMillis() - startTime
-                            )
-                        } catch (e: Exception) {
-                            android.util.Log.e("BluetoothScreen", "Error persisting scan", e)
+                    try {
+                        scope.launch {
+                            try {
+                                repository.persistBluetoothScan(
+                                        devices = results,
+                                        durationMs = System.currentTimeMillis() - startTime
+                                )
+                            } catch (e: Exception) {
+                                android.util.Log.e("BluetoothScreen", "Error persisting scan", e)
+                            }
                         }
-                    }
-                } catch (_: Exception) {}
-            }
+                    } catch (_: Exception) {}
+                }
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Bluetooth-Geräte",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                if (hasScanned || devices.isNotEmpty()) {
-                    val connected = devices.count { it.isConnected }
-                    val bonded = devices.count { it.bondState == BondState.BONDED }
-                    Text(
-                        text = "${devices.size} gefunden" +
-                                (if (connected > 0) " · $connected verbunden" else "") +
-                                (if (bonded > 0) " · $bonded gekoppelt" else ""),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+    if (gattAddress != null) {
+        GattDetailView(
+                state = gattState,
+                onDisconnect = {
+                    gattExplorer.disconnect()
+                    gattAddress = null
                 }
-            }
-
-            FilledTonalButton(
-                onClick = {
-                    if (!permissionState.allPermissionsGranted) {
-                        permissionState.launchMultiplePermissionRequest()
-                    } else {
-                        doScan()
-                    }
-                },
-                enabled = !isScanning
-            ) {
-                if (isScanning) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(Icons.Default.Refresh, contentDescription = "Scannen")
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (isScanning) "Scanne..." else "Scannen")
-            }
-        }
-
-
-        if (!permissionState.allPermissionsGranted) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Berechtigungen erforderlich",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Bluetooth- und Standort-Berechtigungen werden für den Scan benötigt.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { permissionState.launchMultiplePermissionRequest() },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text("Berechtigungen erteilen")
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-
-        if (!btScanner.isBluetoothEnabled()) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
+        )
+    } else {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                    modifier =
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Outlined.BluetoothDisabled,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
+            ) {
+                Column {
                     Text(
-                        text = "Bluetooth ist deaktiviert. Bitte Bluetooth einschalten.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                            text = "Bluetooth-Geräte",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                    )
+                    if (hasScanned || devices.isNotEmpty()) {
+                        val connected = devices.count { it.isConnected }
+                        val bonded = devices.count { it.bondState == BondState.BONDED }
+                        Text(
+                                text =
+                                        "${devices.size} gefunden" +
+                                                (if (connected > 0) " · $connected verbunden"
+                                                else "") +
+                                                (if (bonded > 0) " · $bonded gekoppelt" else ""),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                FilledTonalButton(
+                        onClick = {
+                            if (!permissionState.allPermissionsGranted) {
+                                permissionState.launchMultiplePermissionRequest()
+                            } else {
+                                doScan()
+                            }
+                        },
+                        enabled = !isScanning
+                ) {
+                    if (isScanning) {
+                        CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = "Scannen")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (isScanning) "Scanne..." else "Scannen")
+                }
+            }
+
+            if (!permissionState.allPermissionsGranted) {
+                Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        colors =
+                                CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer
+                                )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                                text = "Berechtigungen erforderlich",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                                text =
+                                        "Bluetooth- und Standort-Berechtigungen werden für den Scan benötigt.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color =
+                                        MaterialTheme.colorScheme.onErrorContainer.copy(
+                                                alpha = 0.7f
+                                        )
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                                onClick = { permissionState.launchMultiplePermissionRequest() },
+                                colors =
+                                        ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.error
+                                        )
+                        ) { Text("Berechtigungen erteilen") }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            if (!btScanner.isBluetoothEnabled()) {
+                Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        colors =
+                                CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                                )
+                ) {
+                    Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                                Icons.Outlined.BluetoothDisabled,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                                text = "Bluetooth ist deaktiviert. Bitte Bluetooth einschalten.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            if (devices.isEmpty() && hasScanned) {
+                Box(
+                        modifier = Modifier.fillMaxSize().padding(32.dp),
+                        contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                            text = "Keine Geräte gefunden.\nVersuche es erneut.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-
-        if (devices.isEmpty() && hasScanned) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Keine Geräte gefunden.\nVersuche es erneut.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else if (devices.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Tippe auf \"Scannen\" um\nBluetooth-Geräte zu finden.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val connected = devices.filter { it.isConnected }
-                val bonded = devices.filter { !it.isConnected && it.bondState == BondState.BONDED }
-                val others = devices.filter { !it.isConnected && it.bondState != BondState.BONDED }
-
-                if (connected.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "VERBUNDEN",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                    }
-                    items(connected, key = { it.address }) { device ->
-                        BluetoothDeviceCard(
-                            device = device,
-                            onGattExplore = { address ->
-                                gattAddress = address
-                                gattExplorer.connect(address)
-                            }
-                        )
-                    }
+            } else if (devices.isEmpty()) {
+                Box(
+                        modifier = Modifier.fillMaxSize().padding(32.dp),
+                        contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                            text = "Tippe auf \"Scannen\" um\nBluetooth-Geräte zu finden.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
+            } else {
+                LazyColumn(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val connected = devices.filter { it.isConnected }
+                    val bonded =
+                            devices.filter { !it.isConnected && it.bondState == BondState.BONDED }
+                    val others =
+                            devices.filter { !it.isConnected && it.bondState != BondState.BONDED }
 
-                if (bonded.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "GEKOPPELT",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
+                    if (connected.isNotEmpty()) {
+                        item {
+                            Text(
+                                    text = "VERBUNDEN",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                        items(connected, key = { it.address }) { device ->
+                            BluetoothDeviceCard(
+                                    device = device,
+                                    onGattExplore = { address ->
+                                        gattAddress = address
+                                        gattExplorer.connect(address)
+                                    }
+                            )
+                        }
                     }
-                    items(bonded, key = { it.address }) { device ->
-                        BluetoothDeviceCard(
-                            device = device,
-                            onGattExplore = { address ->
-                                gattAddress = address
-                                gattExplorer.connect(address)
-                            }
-                        )
+
+                    if (bonded.isNotEmpty()) {
+                        item {
+                            Text(
+                                    text = "GEKOPPELT",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                        items(bonded, key = { it.address }) { device ->
+                            BluetoothDeviceCard(
+                                    device = device,
+                                    onGattExplore = { address ->
+                                        gattAddress = address
+                                        gattExplorer.connect(address)
+                                    }
+                            )
+                        }
                     }
+
+                    if (others.isNotEmpty()) {
+                        item {
+                            Text(
+                                    text = "IN REICHWEITE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                        items(others, key = { it.address }) { device ->
+                            BluetoothDeviceCard(
+                                    device = device,
+                                    onGattExplore = { address ->
+                                        gattAddress = address
+                                        gattExplorer.connect(address)
+                                    }
+                            )
+                        }
+                    }
+
+                    item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
-
-                if (others.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "IN REICHWEITE",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                    }
-                    items(others, key = { it.address }) { device ->
-                        BluetoothDeviceCard(
-                            device = device,
-                            onGattExplore = { address ->
-                                gattAddress = address
-                                gattExplorer.connect(address)
-                            }
-                        )
-                    }
-                }
-
-                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
         }
     }

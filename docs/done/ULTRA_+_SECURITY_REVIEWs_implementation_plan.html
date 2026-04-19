@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>ULTRA_+_SECURITY_REVIEWs_implementation_plan</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="/home/peter/.md_style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">ULTRA_+_SECURITY_REVIEWs_implementation_plan</h1>
+</header>
+<h1 id="implementation-plan-ultra-review-findings">Implementation Plan:
+Ultra Review Findings</h1>
+<p>This plan outlines the systematic resolution of the technical debt,
+bug fixes, and security enhancements identified in the
+<code>ULTRA_REVIEW.md</code> and <code>SECURITY_REVIEW.md</code>
+documents. The work is prioritized based on the urgency indicated in the
+review.</p>
+<h2 id="user-review-required">User Review Required</h2>
+<blockquote>
+<p>[!WARNING] Database Migration: Replacing the destructive migration
+strategy will mean users’ existing data will actually be preserved in
+future version updates. We will set up a robust migration path if schema
+changes occur. Please review the proposed scope below. Let me know if
+you would like me to tackle just Phase 1 &amp; 2 (Must-Fix and
+Should-Fix), or if I should include Phase 3 (Nice-To-Have) as well.</p>
+</blockquote>
+<h2 id="proposed-changes">Proposed Changes</h2>
+<h3 id="phase-1-must-fix-items-pre-release">Phase 1: Must-Fix Items
+(Pre-Release)</h3>
+<h4
+id="modify-appsrcmainjavacomscannerappuiscreensbluetoothscreen.kt">[MODIFY]
+app/src/main/java/com/scanner/app/ui/screens/BluetoothScreen.kt</h4>
+<ul>
+<li><strong>Goal:</strong> Fix the Kotlin string concatenation operator
+precedence bug that prevents “gekoppelt” (bonded) devices from
+displaying correctly.</li>
+<li><strong>Change:</strong> Add parentheses around each <code>if</code>
+branch condition in the string concatenation for <code>connected</code>
+and <code>bonded</code> device counts.</li>
+</ul>
+<h4 id="modify-appsrcmainjavacomscannerappdatadbappdatabase.kt">[MODIFY]
+app/src/main/java/com/scanner/app/data/db/AppDatabase.kt</h4>
+<ul>
+<li><strong>Goal:</strong> Remove destructive migrations to protect user
+app data from deletion.</li>
+<li><strong>Change:</strong> Remove
+<code>fallbackToDestructiveMigration()</code> and set up a proper
+<code>Migration</code> mechanism, or handle schema versions
+correctly.</li>
+</ul>
+<h4
+id="modify-appsrcmainjavacomscannerappuiscreensmapscreen.kt">[MODIFY]
+app/src/main/java/com/scanner/app/ui/screens/MapScreen.kt</h4>
+<ul>
+<li><strong>Goal:</strong> Bind OSMDroid <code>MapView</code> lifecycle
+correctly to avoid memory leaks.</li>
+<li><strong>Change:</strong> Add <code>onDetach()</code> callback inside
+the <code>DisposableEffect</code>’s <code>onDispose</code> block.</li>
+<li><strong>Change:</strong> Add a proper User-Agent string to the
+<code>Configuration</code> per OSM usage policies.</li>
+</ul>
+<h4
+id="new-appsrcmainjavacomscannerapputilcsvescape.kt-or-within-stringext.kt">[NEW]
+app/src/main/java/com/scanner/app/util/CsvEscape.kt (or within
+StringExt.kt)</h4>
+<h4 id="modify-appsrcmainjavacomscannerapputilexportmanager.kt">[MODIFY]
+app/src/main/java/com/scanner/app/util/ExportManager.kt</h4>
+<ul>
+<li><strong>Goal:</strong> Mitigate CSV-Formula-Injection (Finding
+F-1).</li>
+<li><strong>Change:</strong> Introduce a utility function that prepends
+<code>'</code> or strips leading
+<code>=</code>/<code>+</code>/<code>-</code>/<code>@</code> characters
+for user-controlled strings exported to CSV. Update CSV export logic to
+utilize this.</li>
+</ul>
+<hr />
+<h3 id="phase-2-should-fix-items-current-sprint">Phase 2: Should-Fix
+Items (Current Sprint)</h3>
+<h4 id="modify-appsrcmainjavacomscannerapputilportscanner.kt">[MODIFY]
+app/src/main/java/com/scanner/app/util/PortScanner.kt</h4>
+<ul>
+<li><strong>Goal:</strong> Prevent IO Dispatcher thread starvation
+during scanning.</li>
+<li><strong>Change:</strong> Replace <code>Thread.sleep(50)</code> with
+Coroutines <code>delay(50)</code>.</li>
+</ul>
+<h4 id="modify-appsrcmainjavacomscannerappmainactivity.kt">[MODIFY]
+app/src/main/java/com/scanner/app/MainActivity.kt</h4>
+<ul>
+<li><strong>Goal:</strong> Resolve <code>beyondBoundsPageCount</code>
+inconsistencies in the <code>HorizontalPager</code>.</li>
+<li><strong>Change:</strong> Update the value from 6 to 7 or update the
+comment to match the reality of having 8 pages.</li>
+</ul>
+<h4 id="modify-agents.md-appbuild.gradle.kts">[MODIFY] AGENTS.md &amp;
+app/build.gradle.kts</h4>
+<ul>
+<li><strong>Goal:</strong> Resolve documentation drift regarding
+<code>targetSdkVersion</code> and other noted discrepancies
+(e.g. comment language sync).</li>
+</ul>
+<h4
+id="modify-appsrcmainjavacomscannerappuiscreensmapscreen.kt-1">[MODIFY]
+app/src/main/java/com/scanner/app/ui/screens/MapScreen.kt</h4>
+<ul>
+<li><strong>Goal:</strong> Improve Map Pan/Zoom UX.</li>
+<li><strong>Change:</strong> Replace continuous auto-recenter behavior
+with a one-time recenter operation on the first load of data via
+<code>LaunchedEffect</code>.</li>
+</ul>
+<hr />
+<h3 id="phase-3-nice-to-have-backlog-tech-debt">Phase 3: Nice-to-Have
+(Backlog / Tech Debt)</h3>
+<p><em>(Will implement if approved for this cycle)</em> -
+<strong>Minification:</strong> Enable ProGuard/R8 in
+<code>build.gradle.kts</code> for shrinking and optimization
+(<code>isMinifyEnabled = true</code>). - <strong>Linter:</strong> Add
+ktlint to Gradle for code style enforcement. -
+<strong>Concurrency:</strong> Introduce <code>ConcurrentHashMap</code>
+or per-request deferred for <code>GattExplorer.kt</code>’s continuation
+state to prevent future concurrency issues. - <strong>UI
+Performance:</strong> Migrate <code>lazy-loading</code> issues
+(e.g. <code>Filter</code> chips in <code>InventoryScreen.kt</code> from
+a rigid <code>Row</code> to
+<code>LazyRow(Modifier.horizontalScroll)</code>). - <strong>Unit
+Tests:</strong> Scaffold basic JUnit tests for utilities
+(<code>CsvEscape</code>, <code>MacVendorLookup</code>).</p>
+<h2 id="open-questions">Open Questions</h2>
+<ol type="1">
+<li><strong>Scope:</strong> Shall we execute Phase 1 and Phase 2
+immediately, and include any Phase 3 tasks if time permits?</li>
+<li><strong>CsvEscape:</strong> Should I introduce the CSV sanitization
+as a standalone utility object or as an extension function on
+<code>String</code>?</li>
+</ol>
+<h2 id="verification-plan">Verification Plan</h2>
+<h3 id="automated-tests">Automated Tests</h3>
+<ul>
+<li>Check if ktlint formatting passes (if installed).</li>
+<li>Trigger Unit tests for <code>CsvEscape</code> (if implemented).</li>
+</ul>
+<h3 id="manual-verification">Manual Verification</h3>
+<ul>
+<li>Review the <code>BluetoothScreen</code> UI to confirm that bonded
+devices appear properly in the device counter.</li>
+<li>Manually run the Port Scan to ensure the scan completes fast without
+freezing the UI or blocking Coroutines.</li>
+<li>Validate CSV Export output to verify that spreadsheet applications
+(Excel, Calc) treat values beginning with <code>=</code> or
+<code>+</code> as text, avoiding injection exploits.</li>
+</ul>
+</body>
+</html>

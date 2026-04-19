@@ -76,6 +76,7 @@ class ScanService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        android.util.Log.d("ScanService", "onStartCommand: action=${intent?.action}")
         when (intent?.action) {
             ACTION_START -> {
                 val interval = intent.getIntExtra(EXTRA_INTERVAL, 10)
@@ -122,6 +123,7 @@ class ScanService : Service() {
      * Stops the monitoring cycle and removes the foreground notification.
      */
     fun stopMonitoring() {
+        android.util.Log.d("ScanService", "stopMonitoring called")
         monitorJob?.cancel()
         monitorJob = null
         _state.value = _state.value.copy(isRunning = false)

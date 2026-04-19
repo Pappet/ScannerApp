@@ -16,6 +16,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -171,17 +173,16 @@ fun BlinkingDot(
     blink: Boolean,
     size: Dp = 7.dp,
 ) {
-    val alpha = if (blink) {
-        val tr = rememberInfiniteTransition(label = "blink")
-        val a by tr.animateFloat(
+    val tr = rememberInfiniteTransition(label = "blink")
+    val alpha by if (blink) {
+        tr.animateFloat(
             initialValue = 0.35f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(tween(800, easing = LinearEasing)),
             label = "blink-a",
         )
-        a
     } else {
-        1f
+        remember { mutableStateOf(1f) }
     }
     Box(
         Modifier

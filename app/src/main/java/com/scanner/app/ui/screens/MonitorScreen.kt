@@ -63,23 +63,30 @@ fun MonitorScreen() {
         onDispose { if (bound) context.unbindService(connection) }
     }
 
-    val state by service?.state?.collectAsState()
-        ?: remember { mutableStateOf(MonitoringState()) }
+    val serviceStateFlow = service?.state ?: remember { kotlinx.coroutines.flow.MutableStateFlow(MonitoringState()) }
+    val state by serviceStateFlow.collectAsState()
 
     var selectedInterval by remember { mutableStateOf(10) }
 
     fun toggle() {
         if (state.isRunning) {
-            context.startService(
-                Intent(context, ScanService::class.java).apply { action = ScanService.ACTION_STOP }
-            )
+            service?.stopMonitoring() ?: run {
+                context.startService(
+                    Intent(context, ScanService::class.java).apply { action = ScanService.ACTION_STOP }
+                )
+            }
         } else {
-            context.startForegroundService(
-                Intent(context, ScanService::class.java).apply {
-                    action = ScanService.ACTION_START
-                    putExtra(ScanService.EXTRA_INTERVAL, selectedInterval)
-                }
-            )
+            val srv = service
+            if (srv != null) {
+                srv.startMonitoring(selectedInterval)
+            } else {
+                context.startForegroundService(
+                    Intent(context, ScanService::class.java).apply {
+                        action = ScanService.ACTION_START
+                        putExtra(ScanService.EXTRA_INTERVAL, selectedInterval)
+                    }
+                )
+            }
         }
     }
 
@@ -99,7 +106,7 @@ fun MonitorScreen() {
             kicker = "MON",
             subtitle = "Live",
             stats = headerStats,
-            trailing = { MonStartStopPill(running = state.isRunning, onClick = ::toggle) },
+            trailing = { MonStartStopPill(running = state.isRunning, onClick = { toggle() }) },
         )
 
         if (!state.isRunning) {

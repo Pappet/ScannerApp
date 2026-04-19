@@ -16,7 +16,8 @@ full JSX tree.
 | Shared Spectrum primitives | **done** — `ui/components/SpectrumComponents.kt` |
 | Nav shell (8-tab Spectrum bottom nav + pager) | **done** — `MainActivity.kt` |
 | **MAP** screen | **done** — `ui/screens/MapScreen.kt` |
-| WIFI, CH, BT, LAN, MON, SEC, INV | **not started** (Material / old design) |
+| **CHANNEL ANALYSIS** screen | **done** — `ui/screens/ChannelAnalysisScreen.kt` |
+| WIFI, BT, LAN, MON, SEC, INV | **not started** (Material / old design) |
 | WiFi detail, BLE GATT, Export dialog, Onboarding | **not started** (don't exist yet) |
 
 The remaining work is per-screen porting. The theme + primitives layer is

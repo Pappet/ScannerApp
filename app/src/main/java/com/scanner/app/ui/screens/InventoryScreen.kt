@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import com.scanner.app.data.db.DeviceCategory
 import com.scanner.app.data.db.DiscoveredDeviceEntity
 import com.scanner.app.data.repository.DeviceRepository
+import com.scanner.app.ui.components.ExportDialog
 import com.scanner.app.ui.components.HairlineHorizontal
 import com.scanner.app.ui.components.HeaderStat
 import com.scanner.app.ui.components.SpectrumFilterChip
@@ -113,20 +114,22 @@ fun InventoryScreen(
         .map { it.size }.collectAsState(initial = 0)
 
     var editDialogDevice by remember { mutableStateOf<DiscoveredDeviceEntity?>(null) }
+    var showExportDialog by remember { mutableStateOf(false) }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
 
         SpectrumHeader(
             kicker = "INVENTORY",
             subtitle = "Catalog",
             trailing = {
-                // Export pill — ExportDialog (screen 10) wired here once built
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
                         .border(1.dp, Spectrum.AccentDim, RoundedCornerShape(999.dp))
+                        .clickable { showExportDialog = true }
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 ) {
                     Icon(
@@ -197,6 +200,11 @@ fun InventoryScreen(
             },
         )
     }
+
+    if (showExportDialog) {
+        ExportDialog(onDismiss = { showExportDialog = false })
+    }
+    } // Box
 }
 
 @Composable

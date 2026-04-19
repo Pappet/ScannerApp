@@ -16,7 +16,7 @@ import androidx.room.TypeConverters
         ScanSessionEntity::class,
         SignalReadingEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -41,6 +41,7 @@ abstract class AppDatabase : RoomDatabase() {
                     // DO NOT add fallbackToDestructiveMigration() — all schema changes
                     // must be handled via explicit Migration objects listed above to
                     // prevent data loss for the user.
+                    .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }
             }
