@@ -2,36 +2,94 @@ package com.scanner.app.ui.screens
 
 import android.Manifest
 import android.os.Build
-import androidx.compose.animation.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.outlined.BluetoothDisabled
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.outlined.Bluetooth
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.Hub
+import androidx.compose.material.icons.outlined.Mouse
+import androidx.compose.material.icons.outlined.Sensors
+import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.outlined.Tv
+import androidx.compose.material.icons.outlined.Watch
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.scanner.app.data.BluetoothDevice
 import com.scanner.app.data.BondState
+import com.scanner.app.data.DeviceType
 import com.scanner.app.data.repository.DeviceRepository
-import com.scanner.app.ui.components.BluetoothDeviceCard
+import com.scanner.app.ui.components.HairlineHorizontal
+import com.scanner.app.ui.components.HeaderStat
+import com.scanner.app.ui.components.SpectrumHeader
+import com.scanner.app.ui.components.SpectrumKicker
+import com.scanner.app.ui.components.rssiColor
+import com.scanner.app.ui.theme.InterFamily
+import com.scanner.app.ui.theme.JetBrainsMonoFamily
+import com.scanner.app.ui.theme.Spectrum
 import com.scanner.app.util.BluetoothScanner
 import com.scanner.app.util.GattExplorer
 import kotlinx.coroutines.launch
+import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sin
 
-/**
- * Main screen for discovered Bluetooth devices. Orchestrates scanning for both Classic and BLE
- * devices via [BluetoothScanner], and deep GATT exploration via [GattExplorer]. Manages runtime
- * permissions for Bluetooth (Scan/Connect) and location across different API levels.
- */
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun BluetoothScreen() {
@@ -44,6 +102,7 @@ fun BluetoothScreen() {
     var devices by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
     var isScanning by remember { mutableStateOf(false) }
     var hasScanned by remember { mutableStateOf(false) }
+    var selectedAddress by remember { mutableStateOf<String?>(null) }
     var gattAddress by remember { mutableStateOf<String?>(null) }
     val gattState by gattExplorer.state.collectAsState()
 
@@ -58,12 +117,11 @@ fun BluetoothScreen() {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
         add(Manifest.permission.ACCESS_COARSE_LOCATION)
     }
-
     val permissionState = rememberMultiplePermissionsState(permissions)
 
     LaunchedEffect(gattState.connectionState, gattAddress) {
         if (gattState.connectionState == com.scanner.app.util.ConnectionState.READY &&
-                        gattAddress != null
+            gattAddress != null
         ) {
             val json = buildGattJson(gattState)
             repository.persistGattData(gattAddress!!, json)
@@ -76,267 +134,509 @@ fun BluetoothScreen() {
         }
     }
 
-    /**
-     * Triggers a Bluetooth scan using the [BluetoothScanner]. Captures results in real-time,
-     * updates local state, and persists the final set to the repository.
-     */
     fun doScan() {
         if (!btScanner.isBluetoothEnabled()) return
         if (!permissionState.allPermissionsGranted) return
         isScanning = true
         val startTime = System.currentTimeMillis()
         btScanner.startScan(
-                onProgress = { results ->
+            onProgress = { results -> devices = results },
+            onComplete = { results ->
+                devices = results
+                isScanning = false
+                hasScanned = true
+                scope.launch {
                     try {
-                        devices = results
-                    } catch (_: Exception) {}
-                },
-                onComplete = { results ->
-                    try {
-                        devices = results
-                        isScanning = false
-                        hasScanned = true
-                    } catch (_: Exception) {}
-
-                    try {
-                        scope.launch {
-                            try {
-                                repository.persistBluetoothScan(
-                                        devices = results,
-                                        durationMs = System.currentTimeMillis() - startTime
-                                )
-                            } catch (e: Exception) {
-                                android.util.Log.e("BluetoothScreen", "Error persisting scan", e)
-                            }
-                        }
-                    } catch (_: Exception) {}
+                        repository.persistBluetoothScan(
+                            devices = results,
+                            durationMs = System.currentTimeMillis() - startTime,
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.e("BluetoothScreen", "Error persisting scan", e)
+                    }
                 }
+            },
         )
     }
 
+    // GATT detail takes over the screen
     if (gattAddress != null) {
         GattDetailView(
-                state = gattState,
-                onDisconnect = {
-                    gattExplorer.disconnect()
-                    gattAddress = null
-                }
+            state = gattState,
+            onDisconnect = {
+                gattExplorer.disconnect()
+                gattAddress = null
+            },
         )
-    } else {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                    modifier =
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                            text = "Bluetooth-Geräte",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                    )
-                    if (hasScanned || devices.isNotEmpty()) {
-                        val connected = devices.count { it.isConnected }
-                        val bonded = devices.count { it.bondState == BondState.BONDED }
-                        Text(
-                                text =
-                                        "${devices.size} gefunden" +
-                                                (if (connected > 0) " · $connected verbunden"
-                                                else "") +
-                                                (if (bonded > 0) " · $bonded gekoppelt" else ""),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+        return
+    }
 
-                FilledTonalButton(
-                        onClick = {
-                            if (!permissionState.allPermissionsGranted) {
-                                permissionState.launchMultiplePermissionRequest()
-                            } else {
-                                doScan()
-                            }
+    val bondedCount = devices.count { it.bondState == BondState.BONDED }
+    val bleCount = devices.count { it.type == DeviceType.BLE || it.type == DeviceType.DUAL }
+    val selected = devices.firstOrNull { it.address == selectedAddress }
+
+    Column(Modifier.fillMaxSize().background(Spectrum.Surface)) {
+        SpectrumHeader(
+            kicker = "BLUETOOTH",
+            subtitle = "Radar",
+            scanning = isScanning,
+            onScan = {
+                if (!permissionState.allPermissionsGranted)
+                    permissionState.launchMultiplePermissionRequest()
+                else doScan()
+            },
+            stats = if (hasScanned) listOf(
+                HeaderStat(devices.size.toString(), "devices"),
+                HeaderStat(bondedCount.toString(), "bonded"),
+                HeaderStat(bleCount.toString(), "BLE"),
+            ) else emptyList(),
+        )
+
+        // Permission / disabled banners
+        if (!permissionState.allPermissionsGranted) {
+            BtBanner(
+                text = "Bluetooth- und Standort-Berechtigungen erforderlich",
+                color = Spectrum.Danger,
+                action = "ERLAUBEN",
+                onAction = { permissionState.launchMultiplePermissionRequest() },
+            )
+        }
+        if (!btScanner.isBluetoothEnabled()) {
+            BtBanner(
+                text = "Bluetooth ist deaktiviert",
+                color = Spectrum.Warning,
+            )
+        }
+
+        LazyColumn(Modifier.fillMaxSize()) {
+            item {
+                BtRadar(
+                    devices = devices,
+                    selectedAddress = selectedAddress,
+                    isScanning = isScanning,
+                    onSelect = { addr -> selectedAddress = addr },
+                )
+                HairlineHorizontal()
+            }
+
+            if (selected != null) {
+                item {
+                    BtSelectedPanel(
+                        device = selected,
+                        onClose = { selectedAddress = null },
+                        onOpenGatt = {
+                            gattAddress = selected.address
+                            gattExplorer.connect(selected.address)
                         },
-                        enabled = !isScanning
-                ) {
-                    if (isScanning) {
-                        CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(Icons.Default.Refresh, contentDescription = "Scannen")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (isScanning) "Scanne..." else "Scannen")
-                }
-            }
-
-            if (!permissionState.allPermissionsGranted) {
-                Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        colors =
-                                CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.errorContainer
-                                )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                                text = "Berechtigungen erforderlich",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                                text =
-                                        "Bluetooth- und Standort-Berechtigungen werden für den Scan benötigt.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color =
-                                        MaterialTheme.colorScheme.onErrorContainer.copy(
-                                                alpha = 0.7f
-                                        )
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                                onClick = { permissionState.launchMultiplePermissionRequest() },
-                                colors =
-                                        ButtonDefaults.buttonColors(
-                                                containerColor = MaterialTheme.colorScheme.error
-                                        )
-                        ) { Text("Berechtigungen erteilen") }
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            if (!btScanner.isBluetoothEnabled()) {
-                Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        colors =
-                                CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                                )
-                ) {
-                    Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                                Icons.Outlined.BluetoothDisabled,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                                text = "Bluetooth ist deaktiviert. Bitte Bluetooth einschalten.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            if (devices.isEmpty() && hasScanned) {
-                Box(
-                        modifier = Modifier.fillMaxSize().padding(32.dp),
-                        contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                            text = "Keine Geräte gefunden.\nVersuche es erneut.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else if (devices.isEmpty()) {
-                Box(
-                        modifier = Modifier.fillMaxSize().padding(32.dp),
-                        contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                            text = "Tippe auf \"Scannen\" um\nBluetooth-Geräte zu finden.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {
-                LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                item {
+                    Text(
+                        "NEARBY · ${devices.size}",
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 10.sp,
+                        color = Spectrum.OnSurfaceDim,
+                        letterSpacing = 0.18.em,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                    )
+                }
+                val sorted = devices.sortedByDescending { it.rssi ?: -120 }
+                items(sorted, key = { it.address }) { d ->
+                    BtListRow(device = d, onClick = { selectedAddress = d.address })
+                    HairlineHorizontal()
+                }
+            }
+
+            if (devices.isEmpty() && !hasScanned) {
+                item { BtEmptyState("Tippe SCAN um Bluetooth-Geräte zu finden.") }
+            } else if (devices.isEmpty() && hasScanned) {
+                item { BtEmptyState("Keine Geräte gefunden.") }
+            }
+
+            item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun BtRadar(
+    devices: List<BluetoothDevice>,
+    selectedAddress: String?,
+    isScanning: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    val sweep by rememberInfiniteTransition(label = "radar-sweep").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "sweep-angle",
+    )
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .padding(18.dp),
+    ) {
+        val side = min(maxWidth.value, maxHeight.value)
+        val radiusDp = side / 2f
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Spectrum.SurfaceRaised, Spectrum.Surface),
+                        radius = radiusDp * 2f,
+                    ),
+                )
+                .border(1.dp, Spectrum.GridLine, CircleShape),
+        ) {
+            // Rings + crosshair + sweep (Canvas)
+            Canvas(Modifier.fillMaxSize()) {
+                val cx = size.width / 2f
+                val cy = size.height / 2f
+                val radius = min(cx, cy)
+                val dash = PathEffect.dashPathEffect(floatArrayOf(4f, 6f))
+
+                // 3 dashed rings at 0.33, 0.66, 1.0
+                for (r in listOf(0.33f, 0.66f, 1.0f)) {
+                    drawCircle(
+                        color = Spectrum.GridLine,
+                        radius = radius * r,
+                        center = Offset(cx, cy),
+                        style = Stroke(1f, pathEffect = dash),
+                    )
+                }
+
+                // Crosshair
+                drawLine(
+                    color = Spectrum.GridLine,
+                    start = Offset(0f, cy),
+                    end = Offset(size.width, cy),
+                    strokeWidth = 1f,
+                )
+                drawLine(
+                    color = Spectrum.GridLine,
+                    start = Offset(cx, 0f),
+                    end = Offset(cx, size.height),
+                    strokeWidth = 1f,
+                )
+
+                // Sweep line (with trailing fade)
+                if (isScanning || devices.isNotEmpty()) {
+                    val rad = Math.toRadians(sweep.toDouble())
+                    val endX = cx + cos(rad).toFloat() * radius
+                    val endY = cy + sin(rad).toFloat() * radius
+                    drawLine(
+                        brush = Brush.linearGradient(
+                            colors = listOf(Spectrum.Accent, Color.Transparent),
+                            start = Offset(cx, cy),
+                            end = Offset(endX, endY),
+                        ),
+                        start = Offset(cx, cy),
+                        end = Offset(endX, endY),
+                        strokeWidth = 1.5f,
+                    )
+                }
+            }
+
+            // Device dots as composables for tappability
+            devices.forEachIndexed { i, d ->
+                val angleDeg = (i * 137.5f) % 360f
+                val dist = 1f - rssiPct(d.rssi ?: -95)
+                val rad = Math.toRadians(angleDeg.toDouble())
+                val dxDp = (cos(rad).toFloat() * dist * 0.42f * side).dp
+                val dyDp = (sin(rad).toFloat() * dist * 0.42f * side).dp
+                val isSel = d.address == selectedAddress
+                val bonded = d.bondState == BondState.BONDED
+                val dotSize = if (isSel) 12.dp else 8.dp
+                val dotColor = if (bonded) Spectrum.Accent else Spectrum.Accent2
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(x = dxDp, y = dyDp)
+                        .size(if (isSel) 20.dp else 16.dp)
+                        .clip(CircleShape)
+                        .clickable { onSelect(d.address) },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    val connected = devices.filter { it.isConnected }
-                    val bonded =
-                            devices.filter { !it.isConnected && it.bondState == BondState.BONDED }
-                    val others =
-                            devices.filter { !it.isConnected && it.bondState != BondState.BONDED }
-
-                    if (connected.isNotEmpty()) {
-                        item {
-                            Text(
-                                    text = "VERBUNDEN",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(vertical = 4.dp)
-                            )
-                        }
-                        items(connected, key = { it.address }) { device ->
-                            BluetoothDeviceCard(
-                                    device = device,
-                                    onGattExplore = { address ->
-                                        gattAddress = address
-                                        gattExplorer.connect(address)
-                                    }
-                            )
-                        }
+                    if (isSel) {
+                        Box(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(Spectrum.Accent.copy(alpha = 0.25f)),
+                        )
                     }
+                    Box(
+                        modifier = Modifier
+                            .size(dotSize)
+                            .clip(CircleShape)
+                            .background(dotColor),
+                    )
+                }
+            }
 
-                    if (bonded.isNotEmpty()) {
-                        item {
-                            Text(
-                                    text = "GEKOPPELT",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.padding(vertical = 4.dp)
-                            )
-                        }
-                        items(bonded, key = { it.address }) { device ->
-                            BluetoothDeviceCard(
-                                    device = device,
-                                    onGattExplore = { address ->
-                                        gattAddress = address
-                                        gattExplorer.connect(address)
-                                    }
-                            )
-                        }
+            // Center "you" dot
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(Spectrum.OnSurface)
+                    .border(2.dp, Spectrum.Surface, CircleShape),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BtSelectedPanel(
+    device: BluetoothDevice,
+    onClose: () -> Unit,
+    onOpenGatt: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(18.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                btTypeIcon(device.minorClass),
+                contentDescription = null,
+                tint = Spectrum.Accent,
+                modifier = Modifier.size(28.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                val isUnnamed = device.name == "(Unbekannt)" || device.name.isBlank()
+                Text(
+                    text = if (isUnnamed) "${device.vendor ?: "Unknown"} device" else device.name,
+                    fontFamily = InterFamily,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = (-0.01).em,
+                    color = if (isUnnamed) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
+                    fontStyle = if (isUnnamed) FontStyle.Italic else FontStyle.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    buildString {
+                        device.vendor?.let { append(it); append(" · ") }
+                        device.minorClass?.let { append(it); append(" · ") }
+                        append(device.type.displayName())
+                    }.trimEnd(' ', '·'),
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 11.sp,
+                    color = Spectrum.OnSurfaceDim,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .border(1.dp, Spectrum.GridLine, RoundedCornerShape(4.dp))
+                    .clickable { onClose() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = "Schließen",
+                    tint = Spectrum.OnSurfaceDim,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
+
+        // 2×2 info grid
+        Column(Modifier.padding(top = 12.dp)) {
+            val rows = listOf(
+                "ADDR" to device.address,
+                "RSSI" to (device.rssi?.let { "$it dBm" } ?: "—"),
+                "BOND" to device.bondState.displayName(),
+                "TX" to (device.txPower?.let { "$it dBm" } ?: "—"),
+            )
+            rows.chunked(2).forEach { pair ->
+                Row(Modifier.fillMaxWidth()) {
+                    InfoCell(pair[0].first, pair[0].second, Modifier.weight(1f))
+                    Spacer(Modifier.width(18.dp))
+                    if (pair.size > 1) {
+                        InfoCell(pair[1].first, pair[1].second, Modifier.weight(1f))
+                    } else {
+                        Spacer(Modifier.weight(1f))
                     }
-
-                    if (others.isNotEmpty()) {
-                        item {
-                            Text(
-                                    text = "IN REICHWEITE",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(vertical = 4.dp)
-                            )
-                        }
-                        items(others, key = { it.address }) { device ->
-                            BluetoothDeviceCard(
-                                    device = device,
-                                    onGattExplore = { address ->
-                                        gattAddress = address
-                                        gattExplorer.connect(address)
-                                    }
-                            )
-                        }
-                    }
-
-                    item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
             }
         }
+
+        // EXPLORE GATT CTA
+        Box(
+            modifier = Modifier
+                .padding(top = 14.dp)
+                .fillMaxWidth()
+                .background(Spectrum.Accent, RoundedCornerShape(4.dp))
+                .clickable { onOpenGatt() }
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "EXPLORE GATT →",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 11.sp,
+                letterSpacing = 0.2.em,
+                color = Spectrum.Surface,
+            )
+        }
     }
+}
+
+@Composable
+private fun InfoCell(label: String, value: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            label,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 11.sp,
+            color = Spectrum.OnSurfaceDim,
+        )
+        Text(
+            value,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 11.sp,
+            color = Spectrum.OnSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun BtListRow(device: BluetoothDevice, onClick: () -> Unit) {
+    val isUnnamed = device.name == "(Unbekannt)" || device.name.isBlank()
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            btTypeIcon(device.minorClass),
+            contentDescription = null,
+            tint = Spectrum.OnSurfaceDim,
+            modifier = Modifier.size(18.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = if (isUnnamed) (device.vendor ?: "—") else device.name,
+                fontFamily = InterFamily,
+                fontSize = 14.sp,
+                color = if (isUnnamed) Spectrum.OnSurfaceDim else Spectrum.OnSurface,
+                fontStyle = if (isUnnamed) FontStyle.Italic else FontStyle.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${device.address} · ${device.type.displayName()}",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 10.sp,
+                color = Spectrum.OnSurfaceDim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        device.rssi?.let { rssi ->
+            Text(
+                rssi.toString(),
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 13.sp,
+                color = rssiColor(rssi),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BtBanner(
+    text: String,
+    color: Color,
+    action: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.06f))
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 10.sp,
+            color = color,
+            modifier = Modifier.weight(1f),
+        )
+        if (action != null && onAction != null) {
+            Spacer(Modifier.width(12.dp))
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(2.dp))
+                    .border(1.dp, color, RoundedCornerShape(2.dp))
+                    .clickable { onAction() }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            ) {
+                Text(action, fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = color)
+            }
+        }
+    }
+    HairlineHorizontal(color = color.copy(alpha = 0.2f))
+}
+
+@Composable
+private fun BtEmptyState(message: String) {
+    Column(
+        Modifier.fillMaxWidth().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SpectrumKicker("NO SIGNAL", color = Spectrum.OnSurfaceDim)
+        Text(
+            message,
+            color = Spectrum.OnSurfaceDim,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+private fun rssiPct(rssi: Int): Float {
+    val clamped = max(-95, min(-30, rssi))
+    return (clamped + 95) / 65f
+}
+
+private fun btTypeIcon(minorClass: String?): ImageVector = when (minorClass?.lowercase()) {
+    "headphones", "headset", "audio" -> Icons.Outlined.Headphones
+    "tv", "television" -> Icons.Outlined.Tv
+    "mouse" -> Icons.Outlined.Mouse
+    "tracker", "beacon" -> Icons.Outlined.Sensors
+    "wearable", "watch", "smartwatch" -> Icons.Outlined.Watch
+    "iot" -> Icons.Outlined.SmartToy
+    "hub" -> Icons.Outlined.Hub
+    else -> Icons.Outlined.Bluetooth
 }

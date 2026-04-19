@@ -16,9 +16,17 @@ full JSX tree.
 | Shared Spectrum primitives | **done** — `ui/components/SpectrumComponents.kt` |
 | Nav shell (8-tab Spectrum bottom nav + pager) | **done** — `MainActivity.kt` |
 | **MAP** screen | **done** — `ui/screens/MapScreen.kt` |
+| **LAN** screen | **done** — `ui/screens/LanScreen.kt` |
+| **INVENTORY** screen | **done** — `ui/screens/InventoryScreen.kt` |
+| **WIFI** screen | **done** — `ui/screens/WifiScreen.kt` |
+| **WIFI DETAIL** screen | **done** — `ui/screens/WifiDetailScreen.kt` |
 | **CHANNEL ANALYSIS** screen | **done** — `ui/screens/ChannelAnalysisScreen.kt` |
-| WIFI, BT, LAN, MON, SEC, INV | **not started** (Material / old design) |
-| WiFi detail, BLE GATT, Export dialog, Onboarding | **not started** (don't exist yet) |
+| **MONITOR** screen | **done** — `ui/screens/MonitorScreen.kt` |
+| **SECURITY AUDIT** screen | **done** — `ui/screens/SecurityAuditScreen.kt` |
+| **EXPORT DIALOG** | **done** — `ui/components/ExportDialog.kt` |
+| **BLUETOOTH** screen | **done** — `ui/screens/BluetoothScreen.kt` |
+| BLE GATT detail | **not started** (needs rewrite — `BleDetailScreen.kt` exists) |
+| ONBOARDING | **not started** (doesn't exist yet) |
 
 The remaining work is per-screen porting. The theme + primitives layer is
 stable; do not modify it unless you find a concrete shortcoming.
