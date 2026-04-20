@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bluetooth
@@ -27,7 +29,9 @@ import androidx.compose.ui.unit.sp
 import com.isochron.audit.R
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.isochron.audit.ui.theme.JetBrainsMonoFamily
 import com.isochron.audit.ui.theme.Spectrum
+import androidx.compose.ui.unit.em
 
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.isochron.audit.ui.viewmodel.OnboardingViewModel
@@ -90,8 +94,37 @@ fun OnboardingScreen(vm: OnboardingViewModel = viewModel(), onDone: () -> Unit) 
         modifier = Modifier
             .fillMaxSize()
             .background(Spectrum.Surface)
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .padding(28.dp)
     ) {
+        // Brand mark
+        Column(modifier = Modifier.padding(bottom = 22.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(Spectrum.Accent)
+                )
+                Text(
+                    text = stringResource(R.string.onboarding_brand_name),
+                    fontFamily = JetBrainsMonoFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 18.sp,
+                    color = Spectrum.OnSurface,
+                    letterSpacing = 0.18.em,
+                )
+            }
+            Text(
+                text = stringResource(R.string.onboarding_brand_tagline),
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 10.sp,
+                color = Spectrum.OnSurfaceDim,
+                letterSpacing = 0.28.em,
+                modifier = Modifier.padding(start = 14.dp, top = 4.dp)
+            )
+        }
+
         // Step ticks
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),

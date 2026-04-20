@@ -92,9 +92,11 @@
 
 
     <!-- Onboarding -->
+    <string name="onboarding_brand_name">ISOCHRON</string>
+    <string name="onboarding_brand_tagline">IT SECURITY AUDIT</string>
     <string name="onboarding_kicker_start">SCANNER / 01</string>
-    <string name="onboarding_title_start">Instrument your airspace.</string>
-    <string name="onboarding_body_start">This app reads the radio around you — WiFi access points, Bluetooth beacons, devices on your local network. Nothing leaves your phone unless you explicitly export.</string>
+    <string name="onboarding_title_start">Your network. Exposed.</string>
+    <string name="onboarding_body_start">Scan WiFi, Bluetooth, and LAN at a glance. Isochron finds devices, measures signals, and checks for security holes — without a single byte leaving your phone.</string>
     <string name="onboarding_cta_continue">CONTINUE</string>
 
     <string name="onboarding_kicker_perms">PERMISSIONS / 02</string>

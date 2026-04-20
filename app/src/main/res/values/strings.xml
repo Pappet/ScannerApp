@@ -92,9 +92,11 @@
 
 
     <!-- Onboarding -->
+    <string name="onboarding_brand_name">ISOCHRON</string>
+    <string name="onboarding_brand_tagline">IT SECURITY AUDIT</string>
     <string name="onboarding_kicker_start">SCANNER / 01</string>
-    <string name="onboarding_title_start">Instrumentiere deinen Luftraum.</string>
-    <string name="onboarding_body_start">Diese App liest den Funk in deiner Nähe — WLAN-Access-Points, Bluetooth-Beacons, Geräte in deinem lokalen Netzwerk. Nichts verlässt dein Telefon, es sei denn, du exportierst es explizit.</string>
+    <string name="onboarding_title_start">Dein Netz. Durchleuchtet.</string>
+    <string name="onboarding_body_start">Scanne WLAN, Bluetooth und LAN auf einen Blick. Isochron findet Geräte, misst Signale und prüft auf Sicherheitslücken — ohne dass je ein Byte dein Telefon verlässt.</string>
     <string name="onboarding_cta_continue">WEITER</string>
 
     <string name="onboarding_kicker_perms">BERECHTIGUNGEN / 02</string>
