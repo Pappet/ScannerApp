@@ -36,10 +36,12 @@ import com.scanner.app.service.ScanService
 import com.scanner.app.ui.components.*
 import com.scanner.app.ui.theme.JetBrainsMonoFamily
 import com.scanner.app.ui.theme.Spectrum
+import com.scanner.app.ui.viewmodel.MonitorViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.Instant
 
 @Composable
-fun MonitorScreen() {
+fun MonitorScreen(vm: MonitorViewModel = viewModel()) {
     val context = LocalContext.current
     var service by remember { mutableStateOf<ScanService?>(null) }
     var bound by remember { mutableStateOf(false) }
@@ -66,7 +68,7 @@ fun MonitorScreen() {
     val serviceStateFlow = service?.state ?: remember { kotlinx.coroutines.flow.MutableStateFlow(MonitoringState()) }
     val state by serviceStateFlow.collectAsState()
 
-    var selectedInterval by remember { mutableStateOf(10) }
+    val selectedInterval = vm.selectedInterval
 
     fun toggle() {
         if (state.isRunning) {
@@ -113,7 +115,7 @@ fun MonitorScreen() {
             Spacer(Modifier.height(12.dp))
             MonIntervalRow(
                 selected = selectedInterval,
-                onSelect = { selectedInterval = it },
+                onSelect = { vm.selectedInterval = it },
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }

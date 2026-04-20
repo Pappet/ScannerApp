@@ -12,6 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.scanner.app.ui.viewmodel.ChannelAnalysisViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,13 +42,12 @@ import com.scanner.app.util.WifiScanner
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun ChannelAnalysisScreen() {
+fun ChannelAnalysisScreen(vm: ChannelAnalysisViewModel = viewModel()) {
     val context = LocalContext.current
-    val wifiScanner = remember { WifiScanner(context) }
-
-    var analysis by remember { mutableStateOf<ChannelAnalysis?>(null) }
-    var isScanning by remember { mutableStateOf(false) }
-    var selectedBand by remember { mutableStateOf("2.4") } // "2.4" or "5"
+    
+    val analysis = vm.analysis
+    val isScanning = vm.isScanning
+    val selectedBand = vm.selectedBand
 
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -57,23 +58,13 @@ fun ChannelAnalysisScreen() {
     }
     val permissionState = rememberMultiplePermissionsState(permissions)
 
-    DisposableEffect(Unit) { onDispose { wifiScanner.cleanup() } }
-
     fun doScan() {
-        if (!wifiScanner.isWifiEnabled()) return
+        if (!vm.wifiScanner.isWifiEnabled()) return
         if (!permissionState.allPermissionsGranted) {
             permissionState.launchMultiplePermissionRequest()
             return
         }
-        isScanning = true
-        wifiScanner.startScan { results ->
-            try {
-                analysis = ChannelAnalyzer.analyze(results)
-            } catch (e: Exception) {
-                android.util.Log.e("ChannelAnalysis", "Error analyzing", e)
-            }
-            isScanning = false
-        }
+        vm.doScan()
     }
 
     val channels = if (selectedBand == "2.4") analysis?.channels24 else analysis?.channels5
@@ -105,13 +96,13 @@ fun ChannelAnalysisScreen() {
             SpectrumFilterChip(
                 label = "2.4 GHZ BAND",
                 selected = selectedBand == "2.4",
-                onClick = { selectedBand = "2.4" },
+                onClick = { vm.selectedBand = "2.4" },
                 modifier = Modifier.weight(1f)
             )
             SpectrumFilterChip(
                 label = "5 GHZ BAND",
                 selected = selectedBand == "5",
-                onClick = { selectedBand = "5" },
+                onClick = { vm.selectedBand = "5" },
                 modifier = Modifier.weight(1f)
             )
         }
